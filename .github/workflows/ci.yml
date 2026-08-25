@@ -1,0 +1,61 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-suite:
+    name: node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 16 is the floor declared in package.json engines, so it is tested rather than assumed.
+        node: ['16', '18', '20', '22', '24']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # No install step: the library has no runtime dependencies, and running the suite straight
+      # from the checkout is what proves that.
+      - name: offline suite
+        run: node test/offline.test.js
+
+  types:
+    name: TypeScript declarations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm ci
+
+      # Two checks in one script: the declarations must compile against the documented usage, and
+      # every export and method must appear in both the implementation and index.d.ts. A method
+      # present in one and missing from the other is code that works and will not compile.
+      - run: npm run types:check
+
+  package:
+    name: package contents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Lists exactly what a consumer would receive. Catches a `files` entry that stopped matching
+      # anything — which does not fail a build, it just ships an incomplete package.
+      - run: npm pack --dry-run

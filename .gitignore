@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+*.log
+
+# Packaging output
+*.tgz
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Credentials and key material. The README tells you to keep a CA bundle and, for mutual TLS, a
+# client certificate and key nearby — none of that belongs in a commit.
+*.pem
+*.key
+*.p12
+*.pfx
+.npmrc
+.env

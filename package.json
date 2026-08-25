@@ -1,0 +1,46 @@
+{
+  "name": "@epptools/sdk",
+  "version": "1.0.0",
+  "description": "Dependency-free Node.js client for EPP domain registries (RFC 5730-5734 over TLS), with a registry's own extensions discovered from its greeting.",
+  "keywords": [
+    "epp",
+    "registry",
+    "registrar",
+    "domains",
+    "rfc5730",
+    "rfc5731",
+    "dnssec",
+    "sdk"
+  ],
+  "license": "MIT",
+  "author": "EppTools (https://github.com/epptools)",
+  "homepage": "https://github.com/epptools/node-sdk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/epptools/node-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/epptools/node-sdk/issues"
+  },
+  "main": "index.js",
+  "types": "index.d.ts",
+  "engines": {
+    "node": ">=16"
+  },
+  "files": [
+    "src/",
+    "docs/",
+    "CHANGELOG.md",
+    "index.js",
+    "index.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test/offline.test.js",
+    "types:check": "tsc --noEmit --strict --target es2020 --module commonjs --moduleResolution node test/types.test-d.ts && node bin/check-types-parity.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

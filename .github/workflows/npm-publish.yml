@@ -1,0 +1,55 @@
+name: Node.js Package
+
+# Publishes the package to npm (npmjs.com) when you publish a GitHub Release.
+# One-time setup:
+#   1. Create an npm account and an "Automation" access token (npmjs.com -> Access Tokens).
+#   2. Add it to this repo as the secret NPM_TOKEN (Settings -> Secrets and variables -> Actions).
+#   3. Bump "version" in package.json before each Release (npm refuses to republish a version).
+
+# Publishing a GitHub Release for a tag fires BOTH `release` and `push: tags`, so the workflow ran
+# twice for one version and the second run failed on npm's "cannot republish" — a red X on a release
+# that actually succeeded, which is indistinguishable from one that did not.
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write        # enables npm provenance attestation
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      # The package itself has no runtime dependencies; the install is for the TypeScript check.
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: npm run types:check
+
+      # The release's tag is its only public statement of the version; package.json is what actually
+      # ends up ON npm. When they disagree the upload publishes a version nobody announced — and a
+      # version number can never be reused, so there is no correcting it afterwards.
+      - name: tag must match the packaged version
+        run: |
+          packaged="$(node -p "require('./package.json').version")"
+          tagged="${GITHUB_REF_NAME#v}"
+          if [ "$packaged" != "$tagged" ]; then
+            echo "release tag $GITHUB_REF_NAME says $tagged, package.json says $packaged" >&2
+            exit 1
+          fi
+
+      # --access public is required for a SCOPED package: @epptools/sdk would otherwise default to
+      # restricted and the publish fails rather than quietly going private.
+      #
+      # NODE_AUTH_TOKEN can be dropped once a trusted publisher is configured for this package on
+      # npmjs.com (Settings -> Trusted publisher: organization epptools, repository node-sdk,
+      # workflow npm-publish.yml). npm then accepts the OIDC identity this job already requests for
+      # provenance, and no long-lived token needs to exist anywhere.
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
