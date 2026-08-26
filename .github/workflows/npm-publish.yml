@@ -34,7 +34,12 @@ jobs:
       # The release's tag is its only public statement of the version; package.json is what actually
       # ends up ON npm. When they disagree the upload publishes a version nobody announced — and a
       # version number can never be reused, so there is no correcting it afterwards.
+      #
+      # Skipped unless the ref IS a tag. On a workflow_dispatch run GITHUB_REF_NAME holds the branch
+      # name, so an unconditional check compares "main" against "1.0.0" and fails every manual run —
+      # including the one you would use to prove that publishing still authenticates.
       - name: tag must match the packaged version
+        if: github.ref_type == 'tag'
         run: |
           packaged="$(node -p "require('./package.json').version")"
           tagged="${GITHUB_REF_NAME#v}"
