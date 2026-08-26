@@ -396,6 +396,37 @@ async function main() {
     check('contact disclose flag=0', firstLocal(cc, 'disclose').attrs.flag === '0');
   }
 
+  // Removing an organisation is expressed by an EMPTY element, and the difference between "empty"
+  // and "absent" is the whole mechanism: <contact:org/> means take it away, no element at all means
+  // leave it alone. Get that backwards in either direction and it fails silently — an omitted clear
+  // leaves a former organisation in the public WHOIS, a phantom one wipes an untouched org.
+  console.log('contact: an EMPTY org removes it, an ABSENT org says nothing');
+  {
+    const { client, fake } = makeClient([GREETING, OK()]);
+    await client.connect();
+    await client.contact.update('CID1', { chg: { postalInfo: { type: 'loc', org: '', city: 'Kyiv', cc: 'UA' } } });
+    const cc = parse(fake.written[0]);
+    const orgs = allLocal(cc, 'org');
+    check('org emitted for a clear', orgs.length === 1);
+    check('and it is empty', (orgs[0].text || '') === '');
+  }
+  {
+    const { client, fake } = makeClient([GREETING, OK()]);
+    await client.connect();
+    await client.contact.update('CID1', { chg: { postalInfo: { type: 'loc', city: 'Lviv', cc: 'UA' } } });
+    check('no org element when the caller never mentioned it', allLocal(parse(fake.written[0]), 'org').length === 0);
+  }
+  {
+    // On a create there is nothing to remove, so an empty org is simply not an element.
+    const { client, fake } = makeClient([GREETING, OK()]);
+    await client.connect();
+    await client.contact.create('CID1', {
+      postalInfos: [{ type: 'int', name: 'Test Person', org: '', city: 'Kyiv', cc: 'UA' }],
+      email: 'contact@example.com', authInfo: 'pw',
+    });
+    check('create never emits an empty org', allLocal(parse(fake.written[0]), 'org').length === 0);
+  }
+
   console.log('contact: the reserved id asks the registry to mint the handle');
   {
     const creData = '<?xml version="1.0"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><response>'
