@@ -145,18 +145,59 @@ function appendPostalInfo(frame, parent, pi, partial = false) {
   const has = (k) => Object.prototype.hasOwnProperty.call(pi, k);
   const block = frame.ns(parent, C, 'contact:postalInfo', null, { type: pi.type || 'int' });
 
-  if (!partial || has('name')) frame.ns(block, C, 'contact:name', pi.name || '');
+  if (!partial || has('name')) {
+    // WHICH FIELDS CAN BE EMPTIED IS FIXED BY THE SCHEMA, not by us. `name` is postalLineType,
+    // minLength 1, so there is NO WAY to clear a name — an empty element is schema-invalid and the
+    // server answers a bare 2001 naming no field. Refused here, where the message can say so.
+    requireNotEmpty(pi.name, 'name');
+    frame.ns(block, C, 'contact:name', pi.name);
+  }
+  // org is optPostalLineType, which HAS no minLength — an empty one is legal and is exactly how an
+  // organisation is removed.
   if (partial ? has('org') : Boolean(pi.org)) frame.ns(block, C, 'contact:org', pi.org || '');
 
   // <addr> is a sequence with a required city and cc, so it is emitted whole or not at all.
   const addrKeys = ['street', 'city', 'sp', 'pc', 'cc'];
   if (partial && !addrKeys.some(has)) return;
+
+  // AND "WHOLE" MEANS THE CALLER HAS TO SUPPLY THE REQUIRED PARTS. This used to substitute an empty
+  // string for whatever was missing, so clearing one optional field — `{ sp: '' }`, the documented
+  // way to remove a state — emitted <city/> and <cc/> alongside it. city is postalLineType
+  // (minLength 1) and cc is ccType (exactly 2 characters): the frame was schema-invalid, and what
+  // came back was a bare 2001 that names no element. A caller doing precisely what the manual said
+  // got an error pointing at nothing.
+  for (const required of ['city', 'cc']) {
+    if (!pi[required]) {
+      throw new ValidationError(
+        `postalInfo: changing any part of the address means sending the whole <contact:addr>, and `
+        + `RFC 5733 makes "${required}" a required part of it. Read the current address with `
+        + `contact.info() and send city and cc back unchanged alongside what you are changing.`,
+      );
+    }
+  }
+
   const addr = frame.ns(block, C, 'contact:addr');
   for (const line of pi.street || []) frame.ns(addr, C, 'contact:street', line);
-  frame.ns(addr, C, 'contact:city', pi.city || '');
+  frame.ns(addr, C, 'contact:city', pi.city);
   if (partial ? has('sp') : Boolean(pi.sp)) frame.ns(addr, C, 'contact:sp', pi.sp || '');
   if (partial ? has('pc') : Boolean(pi.pc)) frame.ns(addr, C, 'contact:pc', pi.pc || '');
-  frame.ns(addr, C, 'contact:cc', pi.cc || '');
+  frame.ns(addr, C, 'contact:cc', pi.cc);
+}
+
+// Refuse an empty value for an element whose schema type forbids one.
+//
+// The distinction is not a house rule, it is contact-1.0.xsd: optPostalLineType (org, street, sp)
+// has no minLength and pcType has none either, so those four clear by being sent empty.
+// postalLineType (name, city) has minLength 1 and ccType is exactly two characters, so an empty one
+// of those cannot be sent at all. Getting it wrong costs a round trip and returns a bare 2001 with
+// no field named — the least useful error in EPP.
+function requireNotEmpty(value, field) {
+  if (String(value ?? '').trim() === '') {
+    throw new ValidationError(
+      `postalInfo: "${field}" cannot be empty — RFC 5733 gives it a schema type with a minimum `
+      + 'length, so there is no way to clear it. Omit the key to leave it unchanged.',
+    );
+  }
 }
 
 // Truth of a disclosure switch. '0' / 'false' / '' arrive from HTML forms and JSON payloads and
