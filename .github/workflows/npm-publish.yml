@@ -26,6 +26,13 @@ jobs:
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
+      # TRUSTED PUBLISHING NEEDS A NEW ENOUGH CLIENT, and the runner does not have one. The npm that
+      # ships with Node 20 is 10.x, which knows nothing about OIDC: with no NPM_TOKEN present it does
+      # not fall back to anything, it fails with ENEEDAUTH — "you need to authorize this machine" —
+      # which reads as a missing secret rather than as a client too old to use the trust that is
+      # already configured. Exactly how the 1.0.1 release failed.
+      - run: npm install -g npm@latest
+
       # The package itself has no runtime dependencies; the install is for the TypeScript check.
       - run: npm ci --no-audit --no-fund
       - run: npm test
