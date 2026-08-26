@@ -293,35 +293,47 @@ await client.contact.update('C1', {
 You can set and clear only the **client** statuses. `linked` and `ok` are computed by the
 registry, and the `server*` ones belong to it.
 
-### The partial-update rule: presence decides
+### The update rule: a postal block is REPLACED, not merged
 
-Inside a postal block, whether a key is **present** is the whole instruction:
+Send a postal block in `chg` and the registry **replaces** the block it holds with the one you
+sent. The two are not merged field by field, so whatever you leave out is gone.
 
-| You write | What happens |
+RFC 5733 can be read the other way: in `chgPostalInfoType` name, org and addr are each
+optional, which looks like "leave it out and the registry keeps what it holds". That reading
+is not safe. Against a registry that replaces, **every one of these commands answers 1000**:
+
+| What the `chg` carried | What the contact had afterwards |
 |---|---|
-| the key is absent | the field is not sent, and the registry keeps the value it holds |
-| the key holds a value | the field is set to it |
-| the key holds `''` | the field is sent empty, which **clears** it |
+| the complete block with `org: ''` | organisation removed, address untouched |
+| the complete block with no `org` key | organisation **also removed** |
+| `{ org: '' }` and nothing else | **no postal block at all** — name, street, city, postal code and country gone |
 
-An empty string is the only way to remove an optional field — `org`, `sp` or `pc`. There is
-no other spelling for "delete this".
+So there is no such thing as changing one field of an address, and the failure is silent: the
+command succeeds and the data is gone. `name`, `city` and `cc` are required in every postal
+change and this SDK refuses the call without them, but that guard only keeps the frame
+schema-valid — it cannot put back an `org`, an `sp` or a `pc` you did not send.
+
+**Read the block, apply your change, send it back whole:**
 
 ```js
-// Move the contact and drop the organisation, leaving the name and the local-script form
-// exactly as they are.
+const current = (await client.contact.info('C1')).postalInfo().int;
+
+// Move the contact and drop the organisation, keeping everything else as it was.
 await client.contact.update('C1', {
-  chg: {
-    postalInfo: { type: 'int', city: 'Lviv', cc: 'UA', street: ['vul. Svobody 1'], org: '' },
-  },
+  chg: { postalInfo: { ...current, type: 'int', city: 'Lviv', org: '' } },
 });
 ```
 
-**The address block is a sequence with a required city and country**, so it is emitted whole
-or not at all. Touch any part of it — `street`, `city`, `sp`, `pc`, `cc` — and the whole
-block is sent. Give `city` and `cc` on every such change: leave them out and they go to the
-registry as empty elements, which clears the city of a contact you meant only to renumber.
+One thing the replacement does *not* reach is the other postal form: `int` and `loc` are
+addressed separately, so replacing one leaves the other exactly as it was.
 
-Name and organisation sit outside that block, so changing `name` alone sends `name` alone.
+Inside the block you send, an empty string is still what clears an optional field:
+
+| You write | What happens |
+|---|---|
+| the key holds a value | the field is set to it |
+| the key holds `''` | the field is sent empty, which **clears** it |
+| the key is absent | the field is not sent — and the registry deletes what it held |
 
 Changing one form leaves the other untouched: `{ type: 'loc', … }` never disturbs the
 international block.

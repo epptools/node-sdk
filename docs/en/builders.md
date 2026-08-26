@@ -474,26 +474,29 @@ client.contact.updateBuilder(id)   // => ContactUpdateBuilder
 Everything except the two status steps lands in `<contact:chg>`, which is a **replace** block: what
 you name is set, what you do not name is left alone.
 
-### Presence decides, inside an address
+### An address is REPLACED, not merged
 
-Within `changeInternationalAddress()` and `changeLocalizedAddress()`, whether a key is **present** is
-the whole instruction:
+`changeInternationalAddress()` and `changeLocalizedAddress()` hand the registry a block that
+**replaces** the one it holds. The two are not merged field by field, so anything you leave out is
+deleted:
 
 | You write | What happens |
 |---|---|
-| the key is absent | the field is not sent, and the registry keeps the value it holds |
 | the key holds a value | the field is set to it |
 | the key holds `''` | the field is sent empty, which **clears** it |
+| the key is absent | the field is not sent — and the registry deletes what it held |
 
-An empty string is the only way to remove an optional field — `org`, `stateProvince` or
-`postalCode`. There is no other spelling for "delete this".
+RFC 5733 can be read as "leave it out and the registry keeps what it holds", since every child of
+`chgPostalInfoType` is optional, but that reading is not safe. Against a registry that replaces —
+**every command answering 1000** — a block sent without its `org` comes back with the organisation
+gone, and a block carrying only an `org` leaves the contact with no postal address at all: name,
+street, city, postal code and country.
 
-**The address block is a sequence with a required city and country**, so it is emitted whole or not
-at all. Touch any part of it — `street`, `city`, `stateProvince`, `postalCode`, `countryCode` — and
-give `city` and `countryCode` in the same call. Leaving them out sends them as empty elements, which
-clears the city of a contact you meant only to renumber.
+`name`, `city` and `countryCode` are required in every address change for that reason, and the
+builder refuses the call without them. They keep the frame valid; they cannot restore a field you did
+not pass. **Read the block first and pass it back with your change applied.**
 
-Changing one form never disturbs the other.
+Changing one form never disturbs the other: `int` and `loc` are addressed separately.
 
 ### There is no `clearAuthInfo()` here
 
@@ -505,19 +508,24 @@ the holder can present.
 ### Worked example
 
 ```js
-// The customer has moved and dropped the company name. The local-script form and everything
-// else about the contact stay exactly as they are.
+// The customer has moved and dropped the company name. Read the block first: everything you
+// do not pass is deleted, so the parts that are not changing have to travel too.
+const current = (await client.contact.info('C1')).postalInfo().int;
+
 await client.contact.updateBuilder('C1')
   .changeInternationalAddress({
+    ...current,                    // name, and anything else the registry holds
     street: ['vul. Svobody 1'],
     city: 'Lviv',
     countryCode: 'UA',
-    org: '',                       // '' CLEARS it; leaving the key out would keep it
+    org: '',                       // '' CLEARS it — and so, here, would leaving it out
   })
   .changeEmail('new-contact@example.com')
   .addStatus('clientUpdateProhibited')
   .send();
 ```
+
+The local-script form is untouched by that call, because the two forms are addressed separately.
 
 ---
 

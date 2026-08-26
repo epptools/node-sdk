@@ -404,17 +404,31 @@ async function main() {
   {
     const { client, fake } = makeClient([GREETING, OK()]);
     await client.connect();
-    await client.contact.update('CID1', { chg: { postalInfo: { type: 'loc', org: '', city: 'Kyiv', cc: 'UA' } } });
+    await client.contact.update('CID1', { chg: { postalInfo: { type: 'loc', name: 'Test Person', org: '', city: 'Kyiv', cc: 'UA' } } });
     const cc = parse(fake.written[0]);
     const orgs = allLocal(cc, 'org');
     check('org emitted for a clear', orgs.length === 1);
     check('and it is empty', (orgs[0].text || '') === '');
+    check('and the rest of the block travels with it', allLocal(cc, 'city')[0].text === 'Kyiv');
   }
   {
     const { client, fake } = makeClient([GREETING, OK()]);
     await client.connect();
-    await client.contact.update('CID1', { chg: { postalInfo: { type: 'loc', city: 'Lviv', cc: 'UA' } } });
+    await client.contact.update('CID1', { chg: { postalInfo: { type: 'loc', name: 'Test Person', city: 'Lviv', cc: 'UA' } } });
     check('no org element when the caller never mentioned it', allLocal(parse(fake.written[0]), 'org').length === 0);
+  }
+  {
+    // A partial block is REFUSED: verified on the wire that a registry which replaces answers 1000
+    // and drops everything the caller left out — here, the registrant's whole postal address.
+    const { client } = makeClient([GREETING, OK()]);
+    await client.connect();
+    let refused = false;
+    try {
+      await client.contact.update('CID1', { chg: { postalInfo: { type: 'loc', org: '' } } });
+    } catch (e) {
+      refused = e && e.name === 'ValidationError';
+    }
+    check('clearing org WITHOUT the rest of the block is refused', refused);
   }
   {
     // On a create there is nothing to remove, so an empty org is simply not an element.
@@ -466,7 +480,7 @@ async function main() {
       try { await fn(); return null; } catch (e) { return e instanceof ValidationError ? e : null; }
     };
 
-    const noAddr = await refuses(() => client.contact.update('C-1', { chg: { postalInfo: { type: 'loc', sp: '' } } }));
+    const noAddr = await refuses(() => client.contact.update('C-1', { chg: { postalInfo: { type: 'loc', name: 'Ivan', sp: '' } } }));
     check('clearing sp WITHOUT the required parts of <addr> is refused here, not by the server', noAddr !== null);
     check('and the message names the part that is missing', noAddr !== null && noAddr.message.includes('city'));
 
@@ -476,17 +490,33 @@ async function main() {
     check('a name cannot be cleared at all — there is no empty postalLineType', emptyName !== null);
 
     // The whole point of the guard is that the CORRECT call still works and still clears.
-    await client.contact.update('C-1', { chg: { postalInfo: { type: 'loc', sp: '', city: 'Lviv', cc: 'UA' } } });
+    await client.contact.update('C-1', { chg: { postalInfo: { type: 'loc', name: 'Ivan', sp: '', city: 'Lviv', cc: 'UA' } } });
     const sent = parse(fake.written[0]);
     check('sp goes out as an empty element, which is what clears it',
       allLocal(sent, 'sp').length === 1 && allLocal(sent, 'sp')[0].text === '');
     check('and the required parts travel with it',
       textOf(sent, 'city') === 'Lviv' && textOf(sent, 'cc') === 'UA');
 
-    await client.contact.update('C-1', { chg: { postalInfo: { type: 'loc', org: '' } } });
-    const orgOnly = parse(fake.written[1]);
-    check('clearing org alone sends no <addr> and needs no city',
-      allLocal(orgOnly, 'addr').length === 0 && allLocal(orgOnly, 'org').length === 1);
+    // THIS USED TO ASSERT THE OPPOSITE — "clearing org alone sends no <addr> and needs no city" —
+    // and it was a documented way to destroy an address. Against a registry that REPLACES the block
+    // rather than merging it, a chg carrying only <contact:org/> answers 1000 and leaves the contact
+    // with NO postalInfo at all.
+    const orgAlone = await refuses(() => client.contact.update('C-1', { chg: { postalInfo: { type: 'loc', org: '' } } }));
+    check('clearing org WITHOUT the rest of the block is refused', orgAlone !== null);
+
+    // The BUILDER reaches the same code, and nothing checked that it did. A guard that only covers
+    // the raw call leaves the more convenient path — the one the manual leads with — able to do the
+    // damage.
+    const viaBuilder = await refuses(() => client.contact.updateBuilder('C-1')
+      .changeInternationalAddress({ city: 'Lviv', countryCode: 'UA', org: '' })
+      .send());
+    check('and the builder is held to the same rule, not just the raw call', viaBuilder !== null);
+
+    await client.contact.update('C-1', { chg: { postalInfo: { type: 'loc', name: 'Ivan', org: '', city: 'Lviv', cc: 'UA' } } });
+    const orgFull = parse(fake.written[1]);
+    check('the complete form clears org AND carries the address',
+      allLocal(orgFull, 'org').length === 1 && (allLocal(orgFull, 'org')[0].text || '') === ''
+      && textOf(orgFull, 'city') === 'Lviv' && textOf(orgFull, 'name') === 'Ivan');
   }
 
   console.log('contact: update collapses multiple statuses into one add/rem block');
