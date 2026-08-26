@@ -22,9 +22,14 @@ jobs:
       id-token: write        # enables npm provenance attestation
     steps:
       - uses: actions/checkout@v5
+      # THE NODE THAT PUBLISHES IS NOT THE NODE THIS PACKAGE SUPPORTS. What consumers may run is
+      # declared by `engines` in package.json (>=16) and is proved by the test matrix in ci.yml,
+      # which runs the suite on 16 through 24. This number only has to satisfy the npm CLI doing the
+      # upload — and npm 12, the first line of defence for trusted publishing, requires Node 22.22 or
+      # newer. On 20 the upgrade below fails with EBADENGINE and nothing is published.
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
       # TRUSTED PUBLISHING NEEDS A NEW ENOUGH CLIENT, and the runner does not have one. The npm that
       # ships with Node 20 is 10.x, which knows nothing about OIDC: with no NPM_TOKEN present it does
