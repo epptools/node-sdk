@@ -1,6 +1,6 @@
 {
   "name": "@epptools/sdk",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Dependency-free Node.js client for EPP domain registries (RFC 5730-5734 over TLS), with a registry's own extensions discovered from its greeting.",
   "keywords": [
     "epp",

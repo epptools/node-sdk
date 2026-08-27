@@ -251,6 +251,25 @@ export interface TransferInfo {
   expiryDate: string;
 }
 
+/**
+ * What a registry did to one of your objects without you asking (RFC 8590 change poll).
+ *
+ * `state` says which way the accompanying object reads: `'before'` describes it as it last was — a
+ * domain that no longer exists cannot be described any other way — and `'after'` as it now is.
+ * `who` is free text for audit and the server chooses what to put there; `'Registry'` means the
+ * change came from the registry side rather than from your account.
+ * `op` qualifies a `'custom'` operation with the registry's own verb and is `''` otherwise.
+ */
+export interface ChangeInfo {
+  operation: string;
+  op: string;
+  state: 'before' | 'after' | string;
+  date: string;
+  svTRID: string;
+  who: string;
+  reason: string;
+}
+
 /** One `<extValue>` from a failed command: which element the registry objected to, and why. */
 export interface ExtValue {
   element: string;
@@ -336,6 +355,8 @@ export class Response {
   updatedBy(): string | null;
   transferDate(): string | null;
   transfer(): TransferInfo | null;
+  /** RFC 8590: what the registry did to this object, or null when the notice carries no change block. */
+  change(): ChangeInfo | null;
   /** Names, whether the registry answered with hostObj or hostAttr. */
   nameservers(): string[];
   /** hostAttr glue keyed by nameserver name; empty for a hostObj registry. */

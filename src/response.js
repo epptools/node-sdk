@@ -684,6 +684,40 @@ class Response {
     };
   }
 
+  // What the registry did to one of your objects without you asking — RFC 8590 change poll:
+  // { operation, op, state, date, svTRID, who, reason }, or null.
+  //
+  // A poll notice about a server-initiated change carries a human sentence in <msg>, and that
+  // sentence is written in your account's notification language. This is the same event stated so
+  // that code can act on it; the object itself is in <resData> as usual.
+  //
+  // `state` says which way that object reads: 'before' describes it as it last was (a domain that
+  // no longer exists cannot be described any other way), 'after' describes it as it now is —
+  // treating a 'before' block as current is how a client resurrects a deleted object in its own
+  // store. `who` is free text for audit and the server chooses what to put there — a role, a name
+  // or an identifier; 'Registry' means the change came from the registry side rather than from your
+  // account. `op` qualifies a 'custom' operation with the registry's own verb and is empty for the
+  // operations the RFC enumerates. `reason` is the registry's finer name for the event where it
+  // has one.
+  //
+  // Null when the response carries no change block — including when you did not announce
+  // urn:ietf:params:xml:ns:changePoll-1.0 at login, since a server sends this only on request.
+  change() {
+    const el = this._first('changeData');
+    if (!el) return null;
+    const operation = directChild(el, 'operation');
+    return {
+      operation: nodeText(operation),
+      op: (operation && operation.attrs && operation.attrs.op) || '',
+      // 'after' is the schema default, so an omitted attribute means 'after', not "unknown".
+      state: (el.attrs && el.attrs.state) || 'after',
+      date: nodeText(directChild(el, 'date')),
+      svTRID: nodeText(directChild(el, 'svTRID')),
+      who: nodeText(directChild(el, 'who')),
+      reason: nodeText(directChild(el, 'reason')),
+    };
+  }
+
   // A contact's e-mail address.
   email() {
     return this.value('email');
