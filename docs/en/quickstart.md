@@ -14,7 +14,7 @@ Node.js 16 or newer, no dependencies. Or straight from GitHub, pinned to a relea
 rather not depend on the registry being reachable at install time:
 
 ```bash
-npm install github:epptools/node-sdk#v1.0.0
+npm install github:epptools/node-sdk#v1.1.1
 ```
 
 Either way it installs as `@epptools/sdk`, so `require('@epptools/sdk')` works as usual. ESM is

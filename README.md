@@ -30,7 +30,7 @@ npm install @epptools/sdk
 Or straight from GitHub, pinned to a release tag, if you would rather not depend on the npm registry:
 
 ```bash
-npm install github:epptools/node-sdk#v1.0.2
+npm install github:epptools/node-sdk#v1.1.1
 ```
 
 Either way it installs as `@epptools/sdk`, so `require('@epptools/sdk')` works as usual.

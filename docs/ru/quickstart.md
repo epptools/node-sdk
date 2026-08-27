@@ -14,7 +14,7 @@ Node.js 16 или новее, без зависимостей. Либо напр
 предпочитаете не зависеть от доступности реестра пакетов в момент установки:
 
 ```bash
-npm install github:epptools/node-sdk#v1.0.0
+npm install github:epptools/node-sdk#v1.1.1
 ```
 
 В обоих случаях пакет ставится как `@epptools/sdk`, поэтому `require('@epptools/sdk')` работает как

@@ -303,7 +303,7 @@ It identifies the client, and nothing else is taken from it:
 
 ```xml
 <loginSec:userAgent>
-  <loginSec:app>EppTools Node SDK 1.0.0</loginSec:app>
+  <loginSec:app>EppTools Node SDK 1.1.1</loginSec:app>
   <loginSec:tech>Node v20.11.0</loginSec:tech>
   <loginSec:os>linux</loginSec:os>
 </loginSec:userAgent>

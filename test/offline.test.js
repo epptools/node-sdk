@@ -10,6 +10,8 @@ const {
   ObjectStatusError, PolicyError, SessionError,
 } = require('..');
 const { parseXml } = require('../src/xml');
+const fs = require('fs');
+const pathMod = require('path');
 
 let passed = 0;
 let failed = 0;
@@ -1595,6 +1597,41 @@ async function main() {
       && chgDefault.change().reason === '');
 
     check('a response with no change block reports none', trnRes.change() === null);
+
+    // EVERY VERSION THIS PACKAGE STATES ABOUT ITSELF AGREES WITH ITS OWN VERSION.
+    //
+    // The install instructions offer a GitHub alternative "pinned to a release tag", which has to
+    // name a version — and so goes stale at the next release, silently, in three languages at once.
+    // It did: README told people to install v1.0.2 while the package was 1.1.0, and the manuals
+    // still said 1.0.0 from two releases before that. A reader following the documented line got an
+    // older library than the one the same page describes.
+    //
+    // Nothing can keep that in step except something that fails when it drifts. Only x.y.z strings
+    // that LOOK like this package's version are considered, so Node engine ranges, RFC numbers and
+    // the changelog's history of older releases are untouched.
+    {
+      const pkgVersion = require('../package.json').version;
+      const docs = [];
+      const walk = (dir) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = pathMod.join(dir, entry.name);
+          if (entry.isDirectory()) walk(full);
+          else if (entry.name.endsWith('.md') && entry.name !== 'CHANGELOG.md') docs.push(full);
+        }
+      };
+      walk(pathMod.join(__dirname, '..', 'docs'));
+      docs.push(pathMod.join(__dirname, '..', 'README.md'));
+
+      const stale = [];
+      for (const file of docs) {
+        const text = fs.readFileSync(file, 'utf8');
+        for (const m of text.matchAll(/(?<![\d.])1\.\d+\.\d+(?![\d.])/g)) {
+          if (m[0] !== pkgVersion) stale.push(`${pathMod.basename(pathMod.dirname(file))}/${pathMod.basename(file)}: ${m[0]}`);
+        }
+      }
+      check(`every documented version is ${pkgVersion}` + (stale.length ? ` — stale: ${stale.slice(0, 4).join(', ')}` : ''),
+        stale.length === 0);
+    }
 
     const chkRes = Response.fromXml(
       '<?xml version="1.0"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><response>' +

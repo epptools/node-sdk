@@ -1,6 +1,6 @@
 # EppTools for Node.js — reference manual
 
-**Version 1.0.0**
+**Version 1.1.1**
 
 This is the manual for `@epptools/sdk`, an EPP client for Node.js. It opens a TLS socket to the
 registry on port 700, writes RFC 5730–5734 command frames and reads the replies. There is no

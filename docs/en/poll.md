@@ -238,6 +238,45 @@ Act on it. Once the balance runs out, chargeable commands are refused with `2104
 registration you were about to make fails for want of funds rather than for anything wrong
 with the request.
 
+### A change the registry made to your object (RFC 8590)
+
+Some notices describe something that happened to one of your objects without you asking: it stopped
+existing at the registry, or it left on a transfer. These are the ones you have to act on
+automatically — stop billing it, tell your customer, drop it from your own store — and the `<msg>`
+they carry is written in your account's notification language, so nothing in it is safe to parse.
+
+```js
+const chg = notice.change();
+if (chg) {
+  chg.operation;      // 'delete' | 'transfer' | 'renew' | 'update' | 'restore' | 'autoRenew' | …
+  chg.state;          // 'before' | 'after' — see below, this one matters
+  chg.who;            // who did it. 'Registry' = the registry side, not your account
+  chg.date;           // when it happened (the same instant for every poll of this message)
+  chg.svTRID;         // the registry's transaction id for the operation, for a support ticket
+  chg.reason;         // the registry's finer name for the event, where it has one
+  notice.objectName(); // …and the object it happened to
+}
+```
+
+**`state` says which way the object beside it reads.** `after` describes the object as it now is.
+`before` describes it as it last was — which is the only way a domain that no longer exists *can*
+be described. Writing a `before` block into your own store as the object's current state is how a
+deleted domain comes back to life in your records, so branch on it before you save anything.
+
+`change()` returns `null` when the notice carries no change block, which includes every notice if
+you did not announce the extension:
+
+```js
+// The library mirrors the server's greeting into <svcs>, so a registry that offers changePoll is
+// announced for you. Pin your own list only if you have a reason to:
+new Config({ /* … */ extUris: [Namespaces.SECDNS, Namespaces.RGP, Namespaces.CHANGEPOLL] });
+```
+
+Unlike the relocation rule below, announcing **nothing** does not get you `changeData`: a registry
+sends it only to a client that named the namespace, because a client that has never seen it may
+refuse the whole frame. The `<msg>` sentence is unchanged either way, so opting in never removes
+anything you already read.
+
 ---
 
 ## When a payload arrives relocated (RFC 9038)
